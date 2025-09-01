@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>قطع العد — مكعب الألف + قلم (مناسبة للجوال)</title>
+<style>
+  :root{
+    --bg: #fff7fb;
+    --ink:#222;
+    --muted:#6b7280;
+    --ring:#a78bfa;
+    --one:#10b981;
+    --ten:#0ea5e9;
+    --hund:#f59e0b;
+    --thou:#8b5cf6;
+    --grid:#e5e7eb;
+    --panel:#ffffff;
+    --shadow:0 12px 28px rgba(0,0,0,.08);
+    --radius:18px;
+    --cell:12px;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;font-family: system-ui, -apple-system, Segoe UI, Roboto, "Noto Naskh Arabic", "Noto Sans Arabic", Tahoma, Arial, sans-serif;
+    color:var(--ink);
+    background:
+      radial-gradient(1000px 500px at 120% -20%, #ffe4f0 20%, transparent 60%),
+      radial-gradient(1200px 600px at -20% 120%, #e8f5ff 20%, transparent 60%),
+      var(--bg);
+    overscroll-behavior-y: none;
+  }
+  html.lock, body.lock{height:100%; overflow:hidden; overscroll-behavior: contain;}
+  header{
+    position:sticky; top:0; z-index:50; background:rgba(255,255,255,.8); backdrop-filter:saturate(180%) blur(10px);
+    border-bottom:1px solid #f0f0f0;
+  }
+  .wrap{max-width:1200px;margin:0 auto;padding:12px 16px}
+  .title{display:flex;align-items:center;gap:12px;}
+  .title h1{margin:0;font-size:18px;font-weight:800}
+  .toolbar{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+  .btn{appearance:none;border:1px solid #e5e7eb;background:#fff;border-radius:12px;padding:8px 12px;font-weight:700;cursor:pointer;box-shadow:var(--shadow);
+       display:inline-flex;align-items:center;gap:8px}
+  .btn:focus{outline:3px solid var(--ring);outline-offset:2px}
+  .btn.min{padding:6px 10px;border-radius:10px}
+  .chip{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;border:1px solid #e5e7eb;background:#fff;box-shadow:var(--shadow);}
+  .legend{display:none}
+
+  main{max-width:1200px;margin:16px auto;display:grid;grid-template-columns: 300px 1fr;gap:16px;padding:0 16px}
+  @media (max-width: 960px){ main{grid-template-columns:1fr;}}
+  .panel{background:var(--panel);border:1px solid #f1f1f1;border-radius:var(--radius);box-shadow:var(--shadow);padding:14px}
+  .panel h2{margin:0 0 8px;font-size:16px}
+  .panel .sec{margin-top:12px}
+  .panel code{background:#f8fafc;border:1px solid #e5e7eb;border-radius:10px;padding:2px 6px}
+
+  .workspace{
+    position:relative;
+    min-height: calc(100svh - 200px); /* يجعل اللوحة طويلة بما يكفي على الجوال */
+    border:1px dashed #e5e7eb;border-radius:var(--radius);box-shadow:var(--shadow);background:#fff;overflow:hidden;
+    touch-action: none; /* لا سحب/تكبير للصفحة داخل اللوحة */
+    overscroll-behavior: contain;
+  }
+  .grid-on{background-image: linear-gradient(0deg, transparent calc(var(--cell) - 1px), var(--grid) calc(var(--cell) - 1px)),
+                               linear-gradient(90deg, transparent calc(var(--cell) - 1px), var(--grid) calc(var(--cell) - 1px));
+            background-size: var(--cell) var(--cell);}
+
+  .piece{
+    position:absolute; user-select:none; touch-action:none; cursor:grab; transform-origin: top left; will-change:left, top, transform;
+    pointer-events:auto; contain:layout paint;
+  }
+  .piece *{pointer-events:none}
+  .piece.dragging{cursor:grabbing;opacity:.97}
+  .piece.selected{outline:3px dashed var(--ring); outline-offset:2px}
+  .piece .lbl{position:absolute;bottom:-22px;left:0;right:0;text-align:center;font:700 12px/1 system-ui;color:#111}
+
+  .unit{width:var(--cell);height:var(--cell);border:2px solid var(--one);background:rgba(16,185,129,.15); border-radius:4px}
+  .rod{height:var(--cell); width:calc(var(--cell) * 10);
+       background: repeating-linear-gradient(90deg, rgba(14,165,233,.18) 0, rgba(14,165,233,.18) var(--cell), transparent var(--cell), transparent calc(var(--cell) + 1px));
+       border:2px solid var(--ten); border-radius:8px}
+  .flat{width:calc(var(--cell) * 10); height:calc(var(--cell) * 10);
+        background:
+          linear-gradient(#0000, #0000),
+          repeating-linear-gradient(0deg, rgba(245,158,11,.16) 0, rgba(245,158,11,.16) var(--cell), transparent var(--cell), transparent calc(var(--cell) + 1px)),
+          repeating-linear-gradient(90deg, rgba(245,158,11,.16) 0, rgba(245,158,11,.16) var(--cell), transparent var(--cell), transparent calc(var(--cell) + 1px));
+        border:2px solid var(--hund); border-radius:10px}
+
+  .cube{width:144px;height:120px;position:absolute}
+  .cube svg{display:block}
+  .cube .lbl-in{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-weight:800;color:#3b0764;mix-blend-mode:multiply}
+
+  /* طبقة القلم */
+  #inkCanvas{position:absolute; inset:0; width:100%; height:100%; pointer-events:none; touch-action:none;}
+  .drawing #inkCanvas{pointer-events:auto; cursor:crosshair;}
+  .tool-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .range{accent-color: var(--ring);}
+
+  .muted{color:var(--muted)}
+  .kbd{font:700 12px/1.2 ui-monospace; background:#f3f4f6; border:1px solid #e5e7eb; padding:2px 6px; border-radius:6px}
+  .footer{margin-top:12px;font-size:12px;color:#555}
+</style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <div class="title">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden>
+          <rect x="3" y="3" width="6" height="6" rx="1.5" fill="var(--one)"/>
+          <rect x="11" y="3" width="10" height="6" rx="1.5" fill="var(--ten)"/>
+          <rect x="3" y="11" width="10" height="10" rx="2" fill="var(--hund)"/>
+          <rect x="15" y="11" width="6" height="6" rx="1.5" fill="var(--thou)"/>
+        </svg>
+        <h1>قطع العد — يدعم مكعب الألف + قلم (مناسبة للجوال)</h1>
+      </div>
+      <div class="toolbar" role="group" aria-label="أدوات">
+        <button class="btn" data-add="one">إضافة واحد</button>
+        <button class="btn" data-add="ten">إضافة عشرة</button>
+        <button class="btn" data-add="hundred">إضافة مئة</button>
+        <button class="btn" data-add="thousand">إضافة ألف</button>
+        <span class="chip" id="snapChip"><input type="checkbox" id="snap" checked style="transform:scale(1.2);margin-inline:6px 0"> محاذاة للشبكة</span>
+        <button class="btn min" id="btnRotate" title="تدوير (R)">⟳ تدوير</button>
+        <button class="btn min" id="btnExplode" title="تفكيك (E)">⧉ تفكيك</button>
+        <button class="btn min" id="btnDuplicate" title="نسخ (D)">⎘ نسخ</button>
+        <button class="btn min" id="btnDelete" title="حذف (Del)">🗑 حذف</button>
+        <button class="btn min" id="btnReset">↺ إعادة تعيين</button>
+        <button class="btn min" id="btnExport">⬇︎ تصدير</button>
+        <button class="btn min" id="btnImport">⬆︎ استيراد</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <aside class="panel" id="panel">
+      <h2>الحسابات الفورية</h2>
+      <div id="counts">—</div>
+
+      <div class="sec">
+        <h3 style="margin:0 0 6px">قلم الكتابة</h3>
+        <div class="tool-row">
+          <button class="btn min" id="btnPen">✎ تفعيل القلم</button>
+          <button class="btn min" id="btnEraser">ممحاة</button>
+          <label>السُمك <input id="size" class="range" type="range" min="2" max="24" step="1" value="8" style="vertical-align:middle"></label>
+          <div id="palette" class="tool-row" aria-label="ألوان">
+            <button class="btn min" data-col="#111" style="background:#111;color:#fff">أسود</button>
+            <button class="btn min" data-col="#1f2937" style="background:#1f2937;color:#fff">رمادي غامق</button>
+            <button class="btn min" data-col="#ef4444" style="background:#ef4444;color:#fff">أحمر</button>
+            <button class="btn min" data-col="#0ea5e9" style="background:#0ea5e9;color:#fff">أزرق</button>
+            <button class="btn min" data-col="#10b981" style="background:#10b981;color:#fff">أخضر</button>
+            <button class="btn min" data-col="#f59e0b" style="background:#f59e0b;color:#fff">برتقالي</button>
+            <button class="btn min" data-col="#8b5cf6" style="background:#8b5cf6;color:#fff">بنفسجي</button>
+          </div>
+        </div>
+        <div class="tool-row" style="margin-top:8px">
+          <button class="btn min" id="btnUndo" title="تراجع">↶ تراجع</button>
+          <button class="btn min" id="btnRedo" title="إعادة">↷ إعادة</button>
+          <button class="btn min" id="btnClearInk" title="مسح">🧹 مسح الرسمة</button>
+        </div>
+        <p class="muted" style="margin:8px 0 0">ملاحظة: أثناء القلم أو السحب تُقفل حركة الصفحة تلقائيًا.</p>
+      </div>
+
+      <div class="sec">
+        <details>
+          <summary>الترميز اللوني للقطع</summary>
+          <ul><li>واحد = 1</li><li>عشرة = 10</li><li>مئة = 100</li><li>ألف = 1000</li></ul>
+        </details>
+      </div>
+
+      <div class="footer">برمجة ا فاطمة هزازي ملتقى معلمي ومعلمات الرياضيات</div>
+    </aside>
+
+    <section id="workspace" class="workspace grid-on" tabindex="0" aria-label="لوحة العمل">
+      <canvas id="inkCanvas"></canvas>
+    </section>
+  </main>
+
+<script>
+(function(){
+  const WS = document.getElementById('workspace');
+  const INK = document.getElementById('inkCanvas');
+  const snapToggle = document.getElementById('snap');
+  const countsDiv = document.getElementById('counts');
+  const CELL = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--cell')) || 12;
+  const dpr = Math.max(1, window.devicePixelRatio || 1);
+
+  function lockScroll(on){
+    document.documentElement.classList.toggle('lock', on);
+    document.body.classList.toggle('lock', on);
+  }
+
+  /* وضع القلم */
+  let DRAW_MODE = false;
+  let ERASER = false;
+  let color = '#111';
+  let size = 8;
+  let paths = [];
+  let redoStack = [];
+  let activePath = null;
+  let ctx = null;
+
+  function setupCanvas(){
+    const rect = WS.getBoundingClientRect();
+    const w = Math.floor(rect.width);
+    const h = Math.floor(rect.height);
+    INK.width = Math.floor(w * dpr);
+    INK.height = Math.floor(h * dpr);
+    INK.style.width = w + 'px';
+    INK.style.height = h + 'px';
+    ctx = INK.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    renderAllPaths();
+  }
+
+  function renderAllPaths(){
+    if(!ctx) return;
+    const rect = WS.getBoundingClientRect();
+    ctx.clearRect(0, 0, rect.width, rect.height);
+    for(const p of paths){
+      ctx.save();
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = p.size;
+      if(p.erase){
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.strokeStyle = 'rgba(0,0,0,1)';
+      }else{
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.strokeStyle = p.color;
+      }
+      ctx.beginPath();
+      for(let i=0;i<p.points.length;i++){
+        const pt = p.points[i];
+        if(i===0) ctx.moveTo(pt.x, pt.y);
+        else ctx.lineTo(pt.x, pt.y);
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  function startPath(x, y){
+    activePath = {points:[{x,y}], color, size, erase:ERASER};
+    paths.push(activePath);
+    redoStack.length = 0;
+  }
+  function addPoint(x,y){
+    if(!activePath) return;
+    activePath.points.push({x,y});
+    renderAllPaths();
+  }
+  function endPath(){
+    activePath = null;
+  }
+
+  function posFromEvent(e){
+    const r = INK.getBoundingClientRect();
+    return {x: e.clientX - r.left, y: e.clientY - r.top};
+  }
+
+  // أدوات القلم
+  const btnPen = document.getElementById('btnPen');
+  const btnEraser = document.getElementById('btnEraser');
+  const btnUndo = document.getElementById('btnUndo');
+  const btnRedo = document.getElementById('btnRedo');
+  const btnClearInk = document.getElementById('btnClearInk');
+  const sizeInput = document.getElementById('size');
+
+  btnPen.addEventListener('click', ()=>{
+    DRAW_MODE = !DRAW_MODE;
+    ERASER = false;
+    WS.classList.toggle('drawing', DRAW_MODE);
+    btnPen.textContent = DRAW_MODE ? '✎ إيقاف القلم' : '✎ تفعيل القلم';
+  });
+  btnEraser.addEventListener('click', ()=>{
+    if(!DRAW_MODE){ DRAW_MODE = true; WS.classList.add('drawing'); btnPen.textContent = '✎ إيقاف القلم'; }
+    ERASER = !ERASER;
+    btnEraser.textContent = ERASER ? 'وضع الرسم' : 'ممحاة';
+  });
+  sizeInput.addEventListener('input', ()=> size = parseInt(sizeInput.value,10)||8);
+  document.getElementById('palette').addEventListener('click', (e)=>{
+    const col = e.target.getAttribute('data-col'); if(!col) return;
+    color = col; ERASER = false; btnEraser.textContent = 'ممحاة';
+  });
+  btnUndo.addEventListener('click', ()=>{ if(paths.length){ redoStack.push(paths.pop()); renderAllPaths(); }});
+  btnRedo.addEventListener('click', ()=>{ if(redoStack.length){ paths.push(redoStack.pop()); renderAllPaths(); }});
+  btnClearInk.addEventListener('click', ()=>{ paths.length=0; redoStack.length=0; renderAllPaths(); });
+
+  // أحداث الرسم — مع منع تمرير الصفحة
+  INK.addEventListener('pointerdown', (e)=>{
+    if(!DRAW_MODE) return;
+    e.preventDefault(); lockScroll(true);
+    const p = posFromEvent(e); startPath(p.x, p.y);
+    try{ INK.setPointerCapture(e.pointerId); }catch(_){}
+  });
+  INK.addEventListener('pointermove', (e)=>{
+    if(!DRAW_MODE || !activePath) return;
+    e.preventDefault();
+    const p = posFromEvent(e); addPoint(p.x, p.y);
+  });
+  function endInk(){ if(!DRAW_MODE) return; endPath(); lockScroll(false); }
+  INK.addEventListener('pointerup', endInk);
+  INK.addEventListener('pointercancel', endInk);
+  INK.addEventListener('touchmove', (e)=>{ if(DRAW_MODE) e.preventDefault(); }, {passive:false});
+
+  // قطع العد
+  const PIECE_INFO = {
+    one:      { value:1,    class:'unit',   name:'واحد' },
+    ten:      { value:10,   class:'rod',    name:'عشرة' },
+    hundred:  { value:100,  class:'flat',   name:'مئة' },
+    thousand: { value:1000, class:'cube',   name:'ألف' }
+  };
+
+  let z = 1;
+  let selected = null;
+  let dragging = null;
+  let dragOffX = 0, dragOffY = 0;
+  let moved = false;
+
+  function createPiece(type, x=24, y=24, rot=0){
+    const info = PIECE_INFO[type];
+    const el = document.createElement('div');
+    el.className = `piece ${info.class}`;
+    el.dataset.type = type;
+    el.dataset.value = info.value;
+    el.dataset.rot = rot;
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
+    el.style.zIndex = ++z;
+
+    if(type === 'thousand'){
+      el.innerHTML = cubeSVG();
+      const label = document.createElement('div');
+      label.className = 'lbl-in';
+      label.textContent = '1000';
+      el.appendChild(label);
+    }
+
+    if (type !== 'thousand') {
+      const lab = document.createElement('div');
+      lab.className = 'lbl';
+      lab.textContent = `${info.name} (=${info.value})`;
+      el.appendChild(lab);
+    }
+
+    if(rot) applyRotation(el, rot);
+
+    WS.appendChild(el);
+    wirePiece(el);
+    updateCounts();
+    return el;
+  }
+
+  function cubeSVG(){
+    return `<svg width="144" height="120" viewBox="0 0 144 120" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+      <defs>
+        <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#ede9fe"/>
+          <stop offset="1" stop-color="#c4b5fd"/>
+        </linearGradient>
+        <linearGradient id="g2" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#ddd6fe"/>
+          <stop offset="1" stop-color="#a78bfa"/>
+        </linearGradient>
+        <linearGradient id="g3" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#cabffd"/>
+          <stop offset="1" stop-color="#8b5cf6"/>
+        </linearGradient>
+      </defs>
+      <polygon points="72,6 132,36 72,66 12,36" fill="url(#g1)" stroke="#7c3aed" stroke-width="1.5"/>
+      <polygon points="132,36 132,90 72,120 72,66" fill="url(#g2)" stroke="#7c3aed" stroke-width="1.5"/>
+      <polygon points="12,36 12,90 72,120 72,66" fill="url(#g3)" stroke="#7c3aed" stroke-width="1.5"/>
+    </svg>`;
+  }
+
+  function wirePiece(el){
+    el.addEventListener('pointerdown', onDown);
+    el.addEventListener('click', ()=> select(el));
+    el.addEventListener('dblclick', ()=> { if(!dragging && !moved && !DRAW_MODE) explode(el); });
+  }
+
+  function onDown(e){
+    if(DRAW_MODE) return;
+    if(!(e.currentTarget.classList.contains('piece'))) return;
+    const el = e.currentTarget;
+    select(el);
+    dragging = el;
+    e.preventDefault(); lockScroll(true);
+    moved = false;
+    el.classList.add('dragging');
+    const rect = el.getBoundingClientRect();
+    dragOffX = e.clientX - rect.left;
+    dragOffY = e.clientY - rect.top;
+    try { el.setPointerCapture(e.pointerId); } catch(_) {}
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp, { once:true });
+  }
+
+  function onMove(e){
+    if(!dragging) return;
+    e.preventDefault();
+    moved = true;
+    const wsRect = WS.getBoundingClientRect();
+    let x = e.clientX - wsRect.left - dragOffX;
+    let y = e.clientY - wsRect.top - dragOffY;
+    x = Math.max(0, Math.min(x, WS.clientWidth - dragging.offsetWidth));
+    y = Math.max(0, Math.min(y, WS.clientHeight - dragging.offsetHeight));
+    dragging.style.left = x + 'px';
+    dragging.style.top = y + 'px';
+  }
+
+  function onUp(e){
+    if(!dragging) return;
+    const el = dragging;
+    el.classList.remove('dragging');
+    try { el.releasePointerCapture && el.releasePointerCapture(e.pointerId); } catch(_) {}
+    window.removeEventListener('pointermove', onMove);
+    if(snapToggle.checked) snapToGrid(el);
+    dragging = null;
+    lockScroll(false);
+  }
+
+  WS.addEventListener('touchmove', (e)=>{ if(dragging) e.preventDefault(); }, {passive:false});
+
+  function snapToGrid(el){
+    let x = Math.round(parseInt(el.style.left)/CELL)*CELL;
+    let y = Math.round(parseInt(el.style.top)/CELL)*CELL;
+    x = Math.max(0, Math.min(x, WS.clientWidth - el.offsetWidth));
+    y = Math.max(0, Math.min(y, WS.clientHeight - el.offsetHeight));
+    el.style.left = x + 'px'; el.style.top = y + 'px';
+  }
+
+  function select(el){
+    if(selected) selected.classList.remove('selected');
+    selected = el; if(el) el.classList.add('selected');
+    if(el) el.style.zIndex = ++z;
+  }
+
+  function rotate(el){
+    if(!el) return;
+    const type = el.dataset.type;
+    if(type === 'ten' || type === 'hundred'){
+      const rot = ((parseInt(el.dataset.rot)||0) + 90) % 180;
+      applyRotation(el, rot);
+    }
+  }
+
+  function applyRotation(el, rot){
+    el.dataset.rot = rot;
+    el.style.transform = `rotate(${rot}deg)`;
+  }
+
+  function duplicate(el){
+    if(!el) return;
+    const type = el.dataset.type;
+    const x = Math.min(parseInt(el.style.left) + 16, WS.clientWidth - el.offsetWidth);
+    const y = Math.min(parseInt(el.style.top) + 16, WS.clientHeight - el.offsetHeight);
+    const rot = parseInt(el.dataset.rot)||0;
+    const copy = createPiece(type, x, y, rot);
+    select(copy);
+  }
+
+  function remove(el){ if(!el) return; el.remove(); selected=null; updateCounts(); }
+
+  function explode(el){
+    if(!el) return;
+    const map = { thousand:'hundred', hundred:'ten', ten:'one' };
+    const type = el.dataset.type;
+    const child = map[type];
+    if(!child) return;
+    const baseX = parseInt(el.style.left); const baseY = parseInt(el.style.top);
+    const positions = gridPositionsFor(child, baseX, baseY);
+    remove(el);
+    positions.forEach((p)=> createPiece(child, p.x, p.y));
+  }
+
+  function gridPositionsFor(type, baseX, baseY){
+    const arr = [];
+    if(type==='one'){
+      for(let r=0;r<2;r++) for(let c=0;c<5;c++) arr.push({x: baseX + c*CELL, y: baseY + r*CELL});
+    } else if(type==='ten'){
+      const w = CELL*10; const h = CELL;
+      for(let i=0;i<10;i++) arr.push({x: baseX + (i%5)*(w+4), y: baseY + Math.floor(i/5)*(h+10)});
+    } else if(type==='hundred'){
+      const s = CELL*10;
+      for(let i=0;i<10;i++) arr.push({x: baseX + (i%5)*(s+8), y: baseY + Math.floor(i/5)*(s+8)});
+    }
+    return arr.map(p=>({x: Math.max(0, Math.min(p.x, WS.clientWidth-160)), y: Math.max(0, Math.min(p.y, WS.clientHeight-160))}));
+  }
+
+  function updateCounts(){
+    const nodes = [...WS.querySelectorAll('.piece')];
+    const sum = nodes.reduce((s,n)=> s + (parseInt(n.dataset.value)||0), 0);
+    const byType = {one:0,ten:0,hundred:0,thousand:0};
+    nodes.forEach(n=> byType[n.dataset.type]++ );
+    const K = Math.floor(sum/1000);
+    const H = Math.floor((sum%1000)/100);
+    const T = Math.floor((sum%100)/10);
+    const O = sum%10;
+
+    countsDiv.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+        <div>عدد القطع:</div>
+        <div>آحاد: <b>${byType.one}</b> • عشرات: <b>${byType.ten}</b> • مئات: <b>${byType.hundred}</b> • آلاف: <b>${byType.thousand}</b></div>
+        <div>المجموع الكلي:</div>
+        <div style="font-weight:800">${sum}</div>
+        <div>تفصيل المجموع:</div>
+        <div><b>${K}</b> ألف • <b>${H}</b> مئة • <b>${T}</b> عشرة • <b>${O}</b> واحد</div>
+      </div>`;
+  }
+
+  // أزرار الإضافة
+  document.querySelectorAll('[data-add]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const t = btn.getAttribute('data-add');
+      const x = 24 + Math.random()*60;
+      const y = 24 + Math.random()*60;
+      const el = createPiece(t, x, y);
+      if(snapToggle.checked) snapToGrid(el);
+      select(el);
+    });
+  });
+
+  // أزرار التحكم
+  document.getElementById('btnRotate').addEventListener('click', ()=> rotate(selected));
+  document.getElementById('btnDuplicate').addEventListener('click', ()=> duplicate(selected));
+  document.getElementById('btnDelete').addEventListener('click', ()=> remove(selected));
+  document.getElementById('btnExplode').addEventListener('click', ()=> explode(selected));
+  document.getElementById('btnReset').addEventListener('click', ()=> { WS.innerHTML=''; WS.appendChild(INK); selected=null; updateCounts(); renderAllPaths(); });
+
+  // تصدير/استيراد — يشمل الرسم
+  document.getElementById('btnExport').addEventListener('click', ()=>{
+    const pieces = [...WS.querySelectorAll('.piece')].map(n=>({
+      type:n.dataset.type,
+      x:parseInt(n.style.left), y:parseInt(n.style.top), rot:parseInt(n.dataset.rot)||0
+    }));
+    const blob = new Blob([JSON.stringify({v:3, pieces, ink: paths}, null, 2)], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'number-pieces-mobile.json'; a.click(); URL.revokeObjectURL(url);
+  });
+
+  document.getElementById('btnImport').addEventListener('click', ()=>{
+    const inp = document.createElement('input'); inp.type='file'; inp.accept='application/json';
+    inp.onchange = () => {
+      const file = inp.files[0]; if(!file) return;
+      file.text().then(txt=>{
+        try{
+          const obj = JSON.parse(txt); WS.innerHTML=''; WS.appendChild(INK); selected=null;
+          (obj.pieces || obj.data || []).forEach(p=> createPiece(p.type, p.x, p.y, p.rot||0));
+          paths = obj.ink || []; redoStack = []; renderAllPaths();
+          updateCounts();
+        }catch(e){ alert('ملف غير صالح'); }
+      });
+    };
+    inp.click();
+  });
+
+  // مفاتيح سريعة
+  window.addEventListener('keydown', (e)=>{
+    if(e.key==='Delete'){ remove(selected); }
+    else if(e.key.toLowerCase()==='r'){ rotate(selected); }
+    else if(e.key.toLowerCase()==='d'){ duplicate(selected); }
+    else if(e.key.toLowerCase()==='e'){ explode(selected); }
+    else if(e.key.toLowerCase()==='p'){ btnPen.click(); }
+    else if(e.ctrlKey && e.key.toLowerCase()==='z'){ btnUndo.click(); }
+    else if(e.ctrlKey && (e.key.toLowerCase()==='y' || (e.shiftKey && e.key.toLowerCase()==='z'))){ btnRedo.click(); }
+  });
+
+  // الشبكة
+  function updateGridBg(){ WS.classList.toggle('grid-on', snapToggle.checked); }
+  snapToggle.addEventListener('change', updateGridBg); updateGridBg();
+
+  // إلغاء التحديد بالنقر على الفراغ
+  WS.addEventListener('pointerdown', (e)=>{ if(DRAW_MODE) return; if(!e.target.closest('.piece')){ if(selected) selected.classList.remove('selected'); selected=null; }});
+
+  // تهيئة
+  window.addEventListener('resize', setupCanvas);
+  setupCanvas();
+
+  const cx = Math.max(0, (WS.clientWidth - 144) / 2);
+  const cy = Math.max(0, (WS.clientHeight - 120) / 2);
+  createPiece('one', 24, 24);
+  createPiece('ten', 80, 24);
+  createPiece('hundred', 24, 80);
+  createPiece('thousand', Math.round(cx), Math.round(cy));
+})();
+</script>
+</body>
+</html>
